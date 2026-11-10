@@ -1,0 +1,78 @@
+- name: Check server
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'Debian'
+      - ansible_facts['python']['version']['major'] == 3
+      - ansible_facts['memtotal_mb'] >= 256
+    fail_msg: Server does not meet the requirements
+
+- name: Check database is reachable
+  ansible.builtin.wait_for:
+    host: "{{ db_host }}"
+    port: 5432
+    timeout: 30
+
+- name: Install packages
+  ansible.builtin.apt:
+    name:
+      - python3-venv
+      - python3-packaging
+    update_cache: true
+
+- name: Create app user
+  ansible.builtin.user:
+    name: "app"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Create app directory
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "app"
+    group: "app"
+
+- name: Pack app
+  ansible.builtin.command: tar czf /tmp/app.tar.gz -C /app .
+  delegate_to: localhost
+  run_once: true
+  changed_when: false
+
+- name: Unpack app
+  ansible.builtin.unarchive:
+    src: /tmp/app.tar.gz
+    dest: "{{ app_dir }}"
+    owner: "app"
+    group: "app"
+
+- name: Install python dependencies
+  ansible.builtin.pip:
+    requirements: "{{ app_dir }}/requirements.txt"
+    virtualenv: "{{ app_dir }}/venv"
+    virtualenv_command: python3 -m venv
+
+- name: Copy config
+  ansible.builtin.template:
+    src: app.env.j2
+    dest: "{{ app_dir }}/app.env"
+    owner: "app"
+    group: "app"
+    mode: "0600"
+
+- name: Copy start script
+  ansible.builtin.copy:
+    src: start.sh
+    dest: "{{ app_dir }}/start.sh"
+    mode: "0755"
+
+- name: Start app
+  ansible.builtin.command: "{{ app_dir }}/start.sh"
+
+- name: Check app
+  ansible.builtin.uri:
+    url: "http://localhost:{{ app_port }}/health"
+  register: result
+  until: result.status == 200
+  retries: 10
+  delay: 2

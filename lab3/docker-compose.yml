@@ -1,0 +1,48 @@
+services:
+  ansible:
+    build: docker/ansible
+    environment:
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./ansible:/ansible
+      - ./app:/app:ro
+      - ./keys/id_ed25519:/root/.ssh/id_ed25519:ro
+    networks:
+      - lab3
+
+  nginx-node:
+    build: docker/node
+    hostname: nginx-node
+    ports:
+      - "8080:80"
+    volumes:
+      - ./keys/id_ed25519.pub:/root/.ssh/authorized_keys:ro
+    networks:
+      - lab3
+
+  app-node:
+    build: docker/node
+    hostname: app-node
+    volumes:
+      - ./keys/id_ed25519.pub:/root/.ssh/authorized_keys:ro
+    networks:
+      - lab3
+
+  db:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - lab3
+
+networks:
+  lab3:
+
+volumes:
+  pgdata:

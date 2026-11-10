@@ -1,0 +1,9 @@
+- name: Deploy app
+  hosts: app
+  roles:
+    - app
+
+- name: Install nginx
+  hosts: nginx
+  roles:
+    - nginx

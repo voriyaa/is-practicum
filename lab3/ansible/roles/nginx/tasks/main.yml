@@ -1,0 +1,36 @@
+- name: Check server
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'Debian'
+    fail_msg: Server does not meet the requirements
+
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    update_cache: true
+
+- name: Copy site config
+  ansible.builtin.template:
+    src: app.conf.j2
+    dest: /etc/nginx/sites-available/default
+  notify: Reload nginx
+
+- name: Check nginx config
+  ansible.builtin.command: nginx -t
+  changed_when: false
+
+- name: Start nginx
+  ansible.builtin.service:
+    name: nginx
+    state: started
+
+- name: Apply config
+  ansible.builtin.meta: flush_handlers
+
+- name: Check app through nginx
+  ansible.builtin.uri:
+    url: http://localhost/health
+  register: result
+  until: result.status == 200
+  retries: 10
+  delay: 2
